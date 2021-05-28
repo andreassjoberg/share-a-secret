@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useAlert } from "react-alert";
+import { AlertComponentProps, useAlert } from "react-alert";
 import { Key } from "openpgp";
 
 import CryptService from "../services/CryptService";
@@ -9,6 +9,7 @@ export const SharePage = () => {
 
     const encryptedInputTextAreaElement = useRef<HTMLTextAreaElement>(null);
 
+    const [message, setMessage] = useState<AlertComponentProps>();
     const [canReadClipboard, setCanReadClipboard] = useState<boolean>(true);
     const [publicKeyInput, setPublicKeyInput] = useState<string>("");
     const [publicKey, setPublicKey] = useState<Key>();
@@ -28,11 +29,6 @@ export const SharePage = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [publicKeyInput]);
 
-    useEffect(() => {
-        copyEncryptedInputToClipboard();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [encryptedInput]);
-
     const lookForPublicKeyInClipboard = async () => {
         if (publicKey) {
             return;
@@ -43,7 +39,6 @@ export const SharePage = () => {
             clipboard = await navigator.clipboard.readText();
         } catch (_) {
             setCanReadClipboard(false);
-            alert.info("Please allow clipboard access for a better experience. (Everything you do stays in your browser.)");
         }
 
         await readPublicKey(clipboard, false);
@@ -54,31 +49,37 @@ export const SharePage = () => {
             const key = await CryptService.readPublicKey(input);
             if (key) {
                 setPublicKey(key);
-                alert.info("Public key ready!")
+                message?.close();
+                setMessage(alert.info("Public key accepted!"));
                 return;
             }
         }
 
         if (warnIfError) {
-            alert.error("Could not read public key. Please check your input and try again.");
+            message?.close();
+            setMessage(alert.error("Could not read public key. Please check your input and try again."));
         }
     }
 
     const encryptInput = async () => {
         if (!publicKey) {
-            alert.error("Key missing (how did we get here?)");
+            message?.close();
+            setMessage(alert.error("Key missing (how did we get here?)"));
             return;
         }
         if (!input) {
-            alert.info("No input to encrypt :(");
+            message?.close();
+            setMessage(alert.info("No input to encrypt :("));
             return;
         }
 
         const encrypted = await CryptService.encryptInput(publicKey, input);
         if (encrypted) {
             setEncryptedInput(encrypted);
+            copyEncryptedInputToClipboard();
         } else {
-            alert.error("Could not encrypt input. Is something wrong?");
+            message?.close();
+            setMessage(alert.error("Could not encrypt input. Is something wrong?"));
         }
     }
 
@@ -87,8 +88,15 @@ export const SharePage = () => {
         if (element) {
             element.select();
             document.execCommand("copy");
-            alert.info("Text copied!");
+            clearSelection();
+            message?.close();
+            setMessage(alert.info("Encrypted message copied to clipboard!"));
         }
+    }
+
+    const clearSelection = () => {
+        window.getSelection()?.empty && window.getSelection()?.empty();
+        window.getSelection()?.removeAllRanges && window.getSelection()?.removeAllRanges();
     }
 
     return (

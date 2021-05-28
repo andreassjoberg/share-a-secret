@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useAlert } from "react-alert";
+import { AlertComponentProps, useAlert } from "react-alert";
 
 import { useCrypt } from "../hooks/Crypt";
 import CryptService from "../services/CryptService";
@@ -8,6 +8,7 @@ export const ReceivePage = () => {
     const alert = useAlert();
     const { publicKeyArmored, isReady } = useCrypt();
 
+    const [message, setMessage] = useState<AlertComponentProps>();
     const [canReadClipboard, setCanReadClipboard] = useState<boolean>(true);
     const publicKeyTextAreaElement = useRef<HTMLTextAreaElement>(null);
     const [copied, setCopied] = useState<boolean>(false);
@@ -37,7 +38,6 @@ export const ReceivePage = () => {
             clipboard = await navigator.clipboard.readText();
         } catch (_) {
             setCanReadClipboard(false);
-            alert.info("Please allow clipboard access for a better experience. (Everything you do stays in your browser.)");
         }
 
         await decryptInput(clipboard, false);
@@ -50,13 +50,14 @@ export const ReceivePage = () => {
         if (element) {
             element.select();
             document.execCommand("copy");
-            alert.info("Text copied!");
+            clearSelection();
+            message?.close();
+            setMessage(alert.info("Public key copied to clipboard!"));
             setCopied(true);
         }
     }
 
     const decryptInput = async (value: string, warnIfError: boolean = true) => {
-
         if (value && value.trim().match(/-----BEGIN PGP MESSAGE-----\s+/)) {
             const decrypted = await CryptService.decryptInput(value);
             if (decrypted) {
@@ -66,8 +67,14 @@ export const ReceivePage = () => {
         }
 
         if (warnIfError) {
-            alert.error("Could not decrypt input. Something wrong?.");
+            message?.close();
+            setMessage(alert.error("Could not decrypt input. Something wrong?"));
         }
+    }
+
+    const clearSelection = () => {
+        window.getSelection()?.empty && window.getSelection()?.empty();
+        window.getSelection()?.removeAllRanges && window.getSelection()?.removeAllRanges();
     }
 
     return (
@@ -90,7 +97,7 @@ export const ReceivePage = () => {
 
             {!decryptedInput && (
                 <textarea
-                    className="form-control my-3 w-100"
+                    className={["form-control", "my-3", "w-100", copied ? "d-none" : ""].join(" ")}
                     ref={publicKeyTextAreaElement}
                     rows={10}
                     value={publicKeyArmored}
